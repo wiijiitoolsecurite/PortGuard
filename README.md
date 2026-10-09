@@ -60,3 +60,58 @@ Persistance au reboot : ipset-restore.service + netfilter-persistent (ou service
 
 Linux (Debian/Ubuntu, RHEL/Alma/Rocky, openSUSE), root, iptables + ipset.
 
+
+
+## install-reboot-quotidien.sh
+
+Script qui installe, affiche ou désactive un **reboot quotidien** via cron (`/etc/cron.d/reboot-quotidien`). Lancé sans argument, il affiche le statut puis propose d'installer (si rien n'est installé) ou de désactiver (si c'est déjà actif).
+
+### Installation
+
+    wget -qO /root/install-reboot-quotidien.sh https://github.com/wiijiitoolsecurite/PortGuard/raw/refs/heads/main/install-reboot-quotidien.sh
+    chmod +x /root/install-reboot-quotidien.sh
+    /root/install-reboot-quotidien.sh
+
+Ne pas le lancer avec `wget ... | bash` : le menu a besoin de lire votre réponse.
+
+### Utilisation
+
+    ./install-reboot-quotidien.sh            # statut + proposition d'action
+    ./install-reboot-quotidien.sh status     # affiche le statut seulement
+    ./install-reboot-quotidien.sh install    # installe (avec vérifications)
+    ./install-reboot-quotidien.sh uninstall  # désactive
+
+### Options
+
+| Variable / option | Effet |
+|---|---|
+| `HEURE=2` | Heure du reboot, de 0 à 23 (défaut : 4), dans le fuseau du serveur |
+| `START_SCRIPT=/chemin/script.sh` | Script lancé 60 s après chaque démarrage, si aucun démarrage automatique n'est détecté |
+| `--force` | Installe malgré les erreurs détectées (déconseillé) |
+
+Exemple : `HEURE=2 ./install-reboot-quotidien.sh install`
+
+### Vérifications avant installation
+
+L'installation est refusée si l'un de ces points échoue :
+
+- erreurs I/O, resets de lien ou NCQ désactivé dans `dmesg` ;
+- RAID dégradé (`/proc/mdstat`) ;
+- `/home` monté mais absent de `/etc/fstab` ;
+- RAID absent de `/etc/mdadm/mdadm.conf`.
+
+### Fuseau horaire
+
+L'heure du reboot suit le fuseau du serveur (souvent UTC). Vérifiez-le avec `timedatectl` : à 4h UTC, il est 6h à Paris en été et 5h en hiver. Pour changer le fuseau : `timedatectl set-timezone Europe/Paris`.
+
+### Journal
+
+Chaque reboot planifié est consigné dans `/var/log/reboot-quotidien.log`.
+
+### Avertissement
+
+- Un reboot quotidien **masque les problèmes sans les corriger** (fuite mémoire, saturation disque). Cherchez la cause avant de l'automatiser.
+- Faites **un reboot manuel en journée creuse** avant la première nuit automatique, et vérifiez que `/home` remonte et que vos services repartent seuls.
+- Ne l'utilisez pas sur une machine dont un disque est défaillant : un disque instable peut empêcher un RAID de se réassembler au redémarrage.
+- Les services sont coupés pendant 1 à 3 minutes à chaque reboot.
+- Testé sur Ubuntu 18.04 et 20.04. À utiliser à vos risques.
