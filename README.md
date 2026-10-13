@@ -111,6 +111,16 @@ Chaque reboot planifié est consigné dans `/var/log/reboot-quotidien.log`.
 ### Avertissement
 
 - Un reboot quotidien **masque les problèmes sans les corriger** (fuite mémoire, saturation disque). Cherchez la cause avant de l'automatiser.
+
+
+xtream-phpfpm
+
+Pour le récupérer et le lancer sur un autre serveur, le plus sûr est de le télécharger, de le relire, puis de l’exécuter, plutôt que de le piper directement dans bash :
+
+wget -O tune-xtream-phpfpm.sh https://raw.githubusercontent.com/wiijiitoolsecurite/PortGuard/main/tune-xtream-phpfpm.sh
+chmod +x tune-xtream-phpfpm.sh
+./tune-xtream-phpfpm.sh --dry-run
+./tune-xtream-phpfpm.sh --restart
 - Faites **un reboot manuel en journée creuse** avant la première nuit automatique, et vérifiez que `/home` remonte et que vos services repartent seuls.
 - Ne l'utilisez pas sur une machine dont un disque est défaillant : un disque instable peut empêcher un RAID de se réassembler au redémarrage.
 - Les services sont coupés pendant 1 à 3 minutes à chaque reboot.
