@@ -113,15 +113,44 @@ Chaque reboot planifié est consigné dans `/var/log/reboot-quotidien.log`.
 - Un reboot quotidien **masque les problèmes sans les corriger** (fuite mémoire, saturation disque). Cherchez la cause avant de l'automatiser.
 
 
-xtream-phpfpm
+## tune-xtream-phpfpm.sh
 
-Pour le récupérer et le lancer sur un autre serveur, le plus sûr est de le télécharger, de le relire, puis de l’exécuter, plutôt que de le piper directement dans bash :
+Règle PHP-FPM sur un serveur **Xtream Codes** pour supporter beaucoup de viewers simultanés (par défaut environ 2000) : passage des pools en `ondemand` avec un plafond élevé, limites système, validation de la config et redémarrage optionnel.
 
+### Ce que fait le script
+
+- Détecte les fichiers de pool dans `php/etc` (les `.conf` qui contiennent `pm =`).
+- Sauvegarde les fichiers dans `/root/backup-phpfpm/<date-heure>/`.
+- Règle `pm = ondemand`, `pm.max_children = 2500`, `pm.process_idle_timeout = 10s`, `listen.backlog = 4096`, `rlimit_files = 65535` (et `pm.max_requests = 500` s'il est absent), sans créer de doublons.
+- Teste chaque fichier avec `php-fpm -t` et restaure la sauvegarde en cas d'échec.
+- Écrit les limites système dans `/etc/security/limits.d/99-xtream.conf` et `/etc/sysctl.d/99-xtream.conf`.
+- Affiche les valeurs nginx à titre d'information, sans les modifier.
+
+### Installation et utilisation
+
+Accès root requis. Si Xtream Codes n'est pas dans `/home/xtreamcodes/iptv_xtream_codes`, lance le script avec `XC_DIR=/autre/chemin`.
+
+```bash
 wget -O tune-xtream-phpfpm.sh https://raw.githubusercontent.com/wiijiitoolsecurite/PortGuard/main/tune-xtream-phpfpm.sh
 chmod +x tune-xtream-phpfpm.sh
-./tune-xtream-phpfpm.sh --dry-run
-./tune-xtream-phpfpm.sh --restart
-- Faites **un reboot manuel en journée creuse** avant la première nuit automatique, et vérifiez que `/home` remonte et que vos services repartent seuls.
-- Ne l'utilisez pas sur une machine dont un disque est défaillant : un disque instable peut empêcher un RAID de se réassembler au redémarrage.
-- Les services sont coupés pendant 1 à 3 minutes à chaque reboot.
-- Testé sur Ubuntu 18.04 et 20.04. À utiliser à vos risques.
+
+./tune-xtream-phpfpm.sh --dry-run          # simule, ne modifie rien
+./tune-xtream-phpfpm.sh --restart          # applique et relance les services
+./tune-xtream-phpfpm.sh --children 1200    # autre valeur de pm.max_children
+./tune-xtream-phpfpm.sh --rollback         # restaure la dernière sauvegarde
+```
+
+Sans `--restart`, la config est écrite mais n'est pas active tant que les services ne sont pas relancés. Le redémarrage coupe les viewers environ une minute : à faire à une heure creuse.
+
+### Remarques
+
+- `pm.max_children` est un plafond par pool, pas une réservation : en `ondemand`, la RAM n'est consommée que par les workers actifs. Mesure la mémoire réelle d'un worker (PSS) avant de choisir la valeur.
+- Les messages `Terminated` pour `signal_receiver.php` et `pipe_reader.php` pendant le redémarrage sont normaux.
+- N'ajoute pas `request_terminate_timeout` sur le pool qui sert les flux : il couperait les viewers.
+- Pour 2000 viewers, vérifie aussi la bande passante sortante, le CPU (surtout avec du transcodage) et les valeurs nginx `worker_rlimit_nofile` et `worker_connections`.
+
+### Déployer sur plusieurs serveurs
+
+```bash
+ssh root@serveur2 'bash -s -- --children 2500 --restart' < tune-xtream-phpfpm.sh
+```
